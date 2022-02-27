@@ -63,7 +63,7 @@ def proposal(prior, posterior, posterior_clip=128):
     if "tares" in posterior:
         return "tares", None
     max_prob = max(val for _, val in posterior.items())
-    if (max_prob > 0.8) or (len(posterior) == 2):
+    if (max_prob > 0.95) or (len(posterior) == 2):
         return [x for x in posterior if posterior[x] == max_prob][0], None
     if len(posterior) > posterior_clip:
         words = list(posterior)
