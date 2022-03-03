@@ -62,8 +62,8 @@ def score_word(word, posterior, num_samples=256):
 
 
 def proposal(prior, posterior, posterior_clip=1024):
-    # if INITIAL_GUESS in posterior:
-        # return INITIAL_GUESS, None
+    if INITIAL_GUESS in posterior:
+        return INITIAL_GUESS, None
     max_prob = max(val for _, val in posterior.items())
     if (max_prob > 0.95) or (len(posterior) == 2):
         return [x for x in posterior if posterior[x] == max_prob][0], None
