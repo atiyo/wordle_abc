@@ -1,4 +1,3 @@
-import functools
 import math
 
 import numpy as np
@@ -10,6 +9,9 @@ Write \"i\" if I chose an invalid word.
 Write \"c\" to list all candidates.
 Write \"r\" to restart.
 Write \"o\" to guess another word.\n"""
+
+# cache an initial guess since it can be expensive to calculate
+INITIAL_GUESS = "tares"
 
 
 def get_word_frequencies():
@@ -42,7 +44,7 @@ def normalise(posterior):
     return {x[0]: x[1] / totals for x in posterior.items()}
 
 
-def score_word(word, posterior, num_samples=32):
+def score_word(word, posterior, num_samples=256):
     total_posterior_score = 0
     total_green_score = 0
     actual_samples = min(num_samples, len(posterior))
@@ -59,9 +61,9 @@ def score_word(word, posterior, num_samples=32):
     return len(posterior) / total_posterior_score, total_green_score / len(posterior)
 
 
-def proposal(prior, posterior, posterior_clip=128):
-    if "tares" in posterior:
-        return "tares", None
+def proposal(prior, posterior, posterior_clip=1024):
+    # if INITIAL_GUESS in posterior:
+        # return INITIAL_GUESS, None
     max_prob = max(val for _, val in posterior.items())
     if (max_prob > 0.95) or (len(posterior) == 2):
         return [x for x in posterior if posterior[x] == max_prob][0], None
@@ -122,7 +124,8 @@ def play_wordle():
     posterior = initialise_candidates()
     posterior = normalise(posterior)
     while True:
-        guess, scores = proposal(prior, posterior)
+        # guess, scores = proposal(prior, posterior)
+        guess, scores = proposal(posterior, posterior)
         print(f'I guess "{guess}".\n')
         feedback = prompt_for_feedback()
         while feedback == "i":
