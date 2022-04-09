@@ -2,6 +2,7 @@ import math
 
 import numpy as np
 import tqdm
+import multiprocessing as mp
 
 FEEDBACK_STRING = """Enter the result:
 \"x\" for gray, \"y\" for yellow and \"g\" for green.
@@ -10,72 +11,55 @@ Write \"c\" to list all candidates.
 Write \"r\" to restart.
 Write \"o\" to guess another word.\n"""
 
-# cache an initial guess since it can be expensive to calculate
-INITIAL_GUESS = "tares"
 
-
-def get_word_frequencies():
-    with open("./word_frequencies.csv") as f:
-        words = f.readlines()
-    words = [x[:-1] for x in words]
-    words = words[1:]
-    words = [x.split(",") for x in words]
-    words = [x for x in words if len(x[0]) == 5]
-    words = [(x[0], x[1]) for x in words]
-    totals = sum(int(x[1]) for x in words)
-    return {x[0]: int(x[1]) / totals for x in words}
-
-
-def initialise_candidates():
-    with open("./vocab.txt") as f:
+def read_words(filepath):
+    with open(filepath) as f:
         words = f.readlines()
     words = [x[:-1].lower() for x in words]
     words = [x for x in words if len(x) == 5]
     words = [x for x in words if x.islower()]
-    words = list(set(words))
-    frequencies = get_word_frequencies()
-    words = {x: frequencies.get(x, 0.0) for x in words}
-    words = {x: y for x, y in words.items() if y != 0.0}
-    return normalise(words)
+    return set(words)
 
 
-def normalise(posterior):
-    totals = sum(val for _, val in posterior.items())
-    return {x[0]: x[1] / totals for x in posterior.items()}
+def initialise_posterior():
+    return read_words("./posterior.txt")
 
 
-def score_word(word, posterior, num_samples=256):
+def initialise_prior():
+    posterior = read_words("./posterior.txt")
+    non_posterior = read_words("./non_posterior_vocab.txt")
+    return posterior.union(non_posterior)
+
+
+def score_word(word, posterior):
     total_posterior_score = 0
     total_green_score = 0
-    actual_samples = min(num_samples, len(posterior))
-    words = list(posterior)
-    probs = [posterior[x] for x in words]
-    for sampled_target in np.random.choice(words, size=actual_samples, p=probs):
+    for sampled_target in posterior:
         result = get_result(word, sampled_target)
         simulated_posterior = refine_posterior(word, result, posterior)
-        run_score = sum(val for _, val in simulated_posterior.items())
+        run_score = -len(simulated_posterior)
         if run_score == 0:
-            run_score = sum(val for _, val in simulated_posterior.items())
+            run_score = -len(posterior)
         total_posterior_score += run_score
         total_green_score += result.count("g")
-    return len(posterior) / total_posterior_score, total_green_score / len(posterior)
+    return total_posterior_score, total_green_score / len(posterior)
 
 
-def proposal(prior, posterior, posterior_clip=1024):
-    if INITIAL_GUESS in posterior:
-        return INITIAL_GUESS, None
-    max_prob = max(val for _, val in posterior.items())
-    if (max_prob > 0.95) or (len(posterior) == 2):
-        return [x for x in posterior if posterior[x] == max_prob][0], None
-    if len(posterior) > posterior_clip:
-        words = list(posterior)
-        probs = [posterior[x] for x in words]
-        sampled_words = np.random.choice(words, size=posterior_clip, p=probs)
-        posterior_sample = {x: posterior[x] for x in sampled_words}
-        posterior_sample = normalise(posterior_sample)
-    else:
-        posterior_sample = posterior
-    scores = {word: score_word(word, posterior_sample) for word in tqdm.tqdm(prior)}
+def make_global_posterior(posterior):
+    global global_posterior
+    global_posterior = posterior
+
+
+def par_func(word):
+    return word, score_word(word, global_posterior)
+
+
+def proposal(prior, posterior, guess_num):
+    if guess_num == 1:
+        return "roate", None
+    with mp.Pool(initializer=make_global_posterior, initargs=(posterior,)) as pool:
+        output = list(tqdm.tqdm(pool.imap_unordered(par_func, prior), total=len(prior)))
+    scores = {x[0]: x[1] for x in output}
     max_score = max(x[1] for x in scores.items())
     return [x for x in scores if scores[x] == max_score][0], scores
 
@@ -112,7 +96,7 @@ def refine_posterior(guess, result, posterior):
             ]
         elif color == "g":
             candidates = [x for x in candidates if x[i] == letter]
-    return {x: posterior[x] for x in candidates}
+    return set(candidates)
 
 
 def prompt_for_feedback():
@@ -120,12 +104,11 @@ def prompt_for_feedback():
 
 
 def play_wordle():
-    prior = initialise_candidates()
-    posterior = initialise_candidates()
-    posterior = normalise(posterior)
+    prior = initialise_prior()
+    posterior = initialise_posterior()
+    guess_num = 1
     while True:
-        # guess, scores = proposal(prior, posterior)
-        guess, scores = proposal(posterior, posterior)
+        guess, scores = proposal(prior, posterior, guess_num)
         print(f'I guess "{guess}".\n')
         feedback = prompt_for_feedback()
         while feedback == "i":
@@ -143,14 +126,14 @@ def play_wordle():
                 """ Enter the result: \"x\" for gray, \"y\" for yellow and \"g\" for green.\n"""
             )
             posterior = refine_posterior(guess, feedback, posterior)
-            posterior = normalise(posterior)
+            guess_num += 1
         if feedback == "r":
-            prior = initialise_candidates()
-            posterior = initialise_candidates()
-            posterior = normalise(posterior)
+            prior = initialise_prior()
+            posterior = initialise_posterior()
+            guess_num = 1
         else:
             posterior = refine_posterior(guess, feedback, posterior)
-            posterior = normalise(posterior)
+            guess_num += 1
 
 
 if __name__ == "__main__":
