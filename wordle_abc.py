@@ -54,9 +54,32 @@ def par_func(word):
     return word, score_word(word, global_posterior)
 
 
-def proposal(prior, posterior, guess_num):
+def proposal(prior, posterior, guess_num, feedback):
     if guess_num == 1:
         return "roate", None
+    if guess_num == 2:
+        if feedback == "xxxxx":
+            return "slimy", None
+        if feedback == "yxxxx":
+            return "sculk", None
+        if feedback == "xyxxx":
+            return "snool", None
+        if feedback == "xxyxx":
+            return "lysin", None
+        if feedback == "xxxyx":
+            return "shunt", None
+        if feedback == "xxxxy":
+            return "silen", None
+        if feedback == "gxxxx":
+            return "rugby", None
+        if feedback == "xgxxx":
+            return "bludy", None
+        if feedback == "xxgxx":
+            return "slick", None
+        if feedback == "xxxgx":
+            return "hinds", None
+        if feedback == "xxxxg":
+            return "sling", None
     with mp.Pool(initializer=make_global_posterior, initargs=(posterior,)) as pool:
         output = list(tqdm.tqdm(pool.imap_unordered(par_func, prior), total=len(prior)))
     scores = {x[0]: x[1] for x in output}
@@ -107,8 +130,9 @@ def play_wordle():
     prior = initialise_prior()
     posterior = initialise_posterior()
     guess_num = 1
+    feedback = 'xxxxx'
     while True:
-        guess, scores = proposal(prior, posterior, guess_num)
+        guess, scores = proposal(prior, posterior, guess_num, feedback)
         print(f'I guess "{guess}".\n')
         feedback = prompt_for_feedback()
         while feedback == "i":
