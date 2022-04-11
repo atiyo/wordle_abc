@@ -1,8 +1,7 @@
 import math
-
-import numpy as np
-import tqdm
 import multiprocessing as mp
+
+import tqdm
 
 FEEDBACK_STRING = """Enter the result:
 \"x\" for gray, \"y\" for yellow and \"g\" for green.
