@@ -1,2 +1,5 @@
 vocab.txt
 word_frequencies.csv
+non_posterior_vocab.txt
+posterior.txt
+.python-version
